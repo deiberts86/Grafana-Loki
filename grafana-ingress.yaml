@@ -1,0 +1,29 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '30'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '1800'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '1800'
+  name: loki-ingress
+  namespace: cattle-monitoring-system
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.10-7-2-184.sslip.io
+      http:
+        paths:
+          - backend:
+              service:
+                name: rancher-monitoring-grafana
+                port:
+                  number: 8080
+            path: /
+            pathType: Prefix
+  tls:
+    - hosts:
+        - grafana.10-7-2-184.sslip.io
+      secretName: tls-loki-ingress
+...

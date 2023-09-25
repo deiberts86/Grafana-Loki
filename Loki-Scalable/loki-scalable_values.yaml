@@ -1,0 +1,232 @@
+global:
+  clusterDomain: cluster.local
+  dnsNamespace: kube-system
+  dnsService: rke2-coredns-rke2-coredns
+  image:
+    registry: null
+  priorityClassName: null
+imagePullSecrets: []
+memberlist:
+  service:
+    publishNotReadyAddresses: false
+#
+backend:
+  persistence:
+    enableStatefulSetAutoDeletePVC: true
+    selector: null
+    size: 5Gi
+    storageClass: null
+  replicas: 3
+#
+gateway:
+  image:
+    digest: null
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.23-alpine
+  ingress:
+    annotations:
+      cert-manager.io/cluster-issuer: selfsigned
+    enabled: true
+    hosts:
+      - host: loki-gw.deiberts.domain
+        paths:
+          - path: /
+            pathType: Prefix
+    ingressClassName: nginx
+    labels: {}
+    tls:
+      - hosts:
+          - loki-gw.deiberts.domain
+        secretName: loki-gateway-tls
+  lifecycle: {}
+  nginxConfig:
+    customBackendUrl: null
+    customReadUrl: null
+    customWriteUrl: null
+    file: |
+      {{- include "loki.nginxFile" . | indent 2 -}}
+    httpSnippet: >-
+      {{ if .Values.loki.tenants }}proxy_set_header X-Scope-OrgID
+      $remote_user;{{ end }}
+    logFormat: |-
+      main '$remote_addr - $remote_user [$time_local]  $status '
+              '"$request" $body_bytes_sent "$http_referer" '
+              '"$http_user_agent" "$http_x_forwarded_for"';
+    serverSnippet: ''
+  nodeSelector: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    fsGroup: 101
+    runAsGroup: 101
+    runAsNonRoot: true
+    runAsUser: 101
+  priorityClassName: null
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 15
+    timeoutSeconds: 1
+  replicas: 1
+  resources: {}
+  service:
+    annotations: {}
+    clusterIP: null
+    labels: {}
+    loadBalancerIP: null
+    nodePort: null
+    port: 80
+    type: ClusterIP
+  terminationGracePeriodSeconds: 30
+  tolerations: []
+  verboseLogging: true
+#
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned
+  enabled: true
+  hosts:
+    - loki.deiberts.domain
+  ingressClassName: 'nginx'
+  labels: {}
+  paths:
+    read:
+      - /api/prom/tail
+      - /loki/api/v1/tail
+      - /loki/api
+      - /api/prom/rules
+      - /loki/api/v1/rules
+      - /prometheus/api/v1/rules
+      - /prometheus/api/v1/alerts
+    singleBinary:
+      - /api/prom/push
+      - /loki/api/v1/push
+      - /api/prom/tail
+      - /loki/api/v1/tail
+      - /loki/api
+      - /api/prom/rules
+      - /loki/api/v1/rules
+      - /prometheus/api/v1/rules
+      - /prometheus/api/v1/alerts
+    write:
+      - /api/prom/push
+      - /loki/api/v1/push
+  tls:
+    - hosts:
+        - loki.deiberts.domain
+      secretName: loki-api-tls
+kubectlImage:
+  digest: null
+  pullPolicy: IfNotPresent
+  registry: docker.io
+  repository: bitnami/kubectl
+  tag: null
+#
+loki:
+# disable callhome service
+  analytics:
+    reporting_enabled: false
+    usage_stats_url: ""
+  auth_enabled: false
+  compactor:
+    shared_store: s3
+    compaction_interval: 2m
+  image:
+    digest: null
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: grafana/loki
+    tag: null
+  querier:
+    tail_max_duration: 3h
+  query_range:
+    align_queries_with_step: true
+  index_gateway:
+    mode: ring
+  ingester: {}
+  limits_config:
+    enforce_metric_name: false
+    max_cache_freshness_per_query: 10m
+    reject_old_samples: true
+    reject_old_samples_max_age: 72h
+    split_queries_by_interval: 15m
+    per_stream_rate_limit: 512M
+    cardinality_limit: 200000
+    ingestion_burst_size_mb: 1000
+    ingestion_rate_mb: 10000
+    max_entries_limit_per_query: 1000000
+    max_global_streams_per_user: 10000
+    max_streams_per_user: 0
+    max_label_value_length: 20480
+    max_label_name_length: 10240
+    max_label_names_per_series: 300
+  memberlistConfig: {}
+  memcached:
+    chunk_cache:
+      batch_size: 256
+      enabled: false
+      host: ''
+      parallelism: 10
+      service: memcached-client
+    results_cache:
+      default_validity: 12h
+      enabled: false
+      host: ''
+      service: memcached-client
+      timeout: 500ms
+  schemaConfig:
+    configs:
+      - from: 2023-01-01
+        store: boltdb-shipper
+        object_store: s3
+        schema: v11
+        index:
+          prefix: loki_index_
+          period: 24h
+  server:
+    grpc_listen_port: 9095
+    http_listen_port: 3100
+  storage:
+    bucketNames:
+      admin: admin
+      chunks: chunks
+      ruler: ruler
+    type: s3
+    s3:
+      accessKeyId: "cA6lAkNyvsxFANyxj3Xh"
+      endpoint: https://minio.loki.svc.cluster.local
+      http_config:
+        idle_conn_timeout: 90s
+        response_header_timeout: 2s
+        insecure_skip_verify: true
+      insecure: false
+      region: lab
+      s3ForcePathStyle: true
+      secretAccessKey: "B5xMep2wdhPwq5jym8Pwju54XebslTFBoysollXy"
+      boltdb_shipper:
+        active_index_directory: /loki/index
+        cache_location: /loki/cache
+        cache_ttl: 12h # Can be increased for faster performance over longer query periods, uses more disk space
+        shared_store: s3
+#
+read:
+  persistence:
+    enableStatefulSetAutoDeletePVC: true
+    selector: null
+    size: 5Gi
+    storageClass: null
+  replicas: 3
+#
+write:
+  persistence:
+    enableStatefulSetAutoDeletePVC: false
+    selector: null
+    size: 5Gi
+    storageClass: null
+  replicas: 3
+#
+tracing:
+  jaegerAgentHost: ''

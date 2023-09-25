@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana-agent-logs
+  namespace: loki
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: grafana-agent-logs
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: grafana-agent-logs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: grafana-agent-logs
+subjects:
+- kind: ServiceAccount
+  name: grafana-agent-logs
+  namespace: loki
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: grafana-agent-logs
+  namespace: loki
+spec:
+  minReadySeconds: 10
+  selector:
+    matchLabels:
+      name: grafana-agent-logs
+  template:
+    metadata:
+      labels:
+        name: grafana-agent-logs
+    spec:
+      containers:
+      - args:
+        - -config.expand-env=true
+        - -config.file=/etc/agent/agent.yaml
+        - -server.http.address=0.0.0.0:80
+        env:
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: grafana/agent:v0.36.1
+        imagePullPolicy: IfNotPresent
+        name: grafana-agent-logs
+        ports:
+        - containerPort: 80
+          name: http-metrics
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+        - mountPath: /etc/agent
+          name: grafana-agent-logs
+        - mountPath: /var/log
+          name: varlog
+        - mountPath: /var/log/containers
+          name: varlogcontainers
+        - mountPath: /var/lib/docker/containers
+          name: varlibdockercontainers
+          readOnly: true
+      serviceAccountName: grafana-agent-logs
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      volumes:
+      - configMap:
+          name: grafana-agent-logs
+        name: grafana-agent-logs
+      - hostPath:
+          path: /var/log
+        name: varlog
+      - hostPath:
+          path: /var/lib/docker/containers
+        name: varlibdockercontainers
+      - hostPath:
+          path: /var/log/containers
+        name: varlogcontainers
+  updateStrategy:
+    type: RollingUpdate
+--- # configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-agent-logs
+  namespace: loki
+data:
+  agent.yaml: |
+    positions_directory: /tmp/positions/
+    configs:
+    - name: logging
+      clients:
+      - url: https://loki-gateway/loki/api/v1/push
+        # tenant_id: 4zz-3cGLS5tzuDRb6LkEdpem7eOqj8EFecfWcJmTvrakS15gu07iEvtC5RfYDzi8
+      scrape_configs:
+      - job_name: varlogs
+        static_configs:
+        - targets: [localhost]
+          labels:
+            job: varlogs
+            __path__: /host/root/var/log/*.log
+      - job_name: varlogcontainers
+        static_configs:
+        - targets: [localhost]
+          labels:
+            job: varlogs
+            __path__: /host/root/var/log/containers/*.log

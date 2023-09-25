@@ -1,0 +1,223 @@
+# Global
+global:
+  clusterDomain: cluster.local
+  dnsNamespace: kube-system
+  dnsService: rke2-coredns-rke2-coredns
+# Loki
+loki:
+  commonConfig:
+    replication_factor: 3
+  storage:
+    type: 's3'
+    s3:
+      endpoint: http://loki-s3-hl.loki.svc.cluster.local:9000
+      bucketnames: loki-chunks
+      secret_access_key: "DxUt1R2CxdypbPQ9TsKywnvwdYI5i0BSdGfEC1Cj"
+      access_key_id: "JCQUJE4ogv7RNmsbIoPU"
+# Gateway
+gateway:
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              {{- include "loki.gatewaySelectorLabels" . | nindent 10 }}
+          topologyKey: kubernetes.io/hostname
+  annotations: {}
+  basicAuth:
+    enabled: false
+    existingSecret: null
+    htpasswd: >-
+      {{ if .Values.loki.tenants }}
+        {{- range $t := .Values.loki.tenants }}
+      {{ htpasswd (required "All tenants must have a 'name' set" $t.name)
+      (required "All tenants must have a 'password' set" $t.password) }}
+        {{- end }}
+      {{ else }} {{ htpasswd (required "'gateway.basicAuth.username' is
+      required" .Values.gateway.basicAuth.username) (required
+      "'gateway.basicAuth.password' is required"
+      .Values.gateway.basicAuth.password) }} {{ end }}
+    password: null
+    username: null
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+  deploymentStrategy:
+    type: RollingUpdate
+  enabled: true
+  extraArgs: []
+  extraEnv: []
+  extraEnvFrom: []
+  extraVolumeMounts: []
+  extraVolumes: []
+  image:
+    digest: null
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.23-alpine
+  ingress:
+    annotations:
+      cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+    enabled: true
+    hosts:
+      - host: loki.10-7-2-141.sslip.io
+        paths:
+          - path: /
+            pathType: Prefix
+    ingressClassName: nginx
+    labels: {}
+    tls:
+      - hosts:
+          - loki.10-7-2-141.sslip.io
+        secretName: loki-gateway-tls
+  lifecycle: {}
+  nginxConfig:
+    customBackendUrl: null
+    customReadUrl: null
+    customWriteUrl: null
+    file: |
+      {{- include "loki.nginxFile" . | indent 2 -}}
+    httpSnippet: >-
+      {{ if .Values.loki.tenants }}proxy_set_header X-Scope-OrgID
+      $remote_user;{{ end }}
+    logFormat: |-
+      main '$remote_addr - $remote_user [$time_local]  $status '
+              '"$request" $body_bytes_sent "$http_referer" '
+              '"$http_user_agent" "$http_x_forwarded_for"';
+    serverSnippet: ''
+  nodeSelector: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    fsGroup: 101
+    runAsGroup: 101
+    runAsNonRoot: true
+    runAsUser: 101
+  priorityClassName: null
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 15
+    timeoutSeconds: 1
+  replicas: 1
+  resources: {}
+  service:
+    annotations: {}
+    clusterIP: null
+    labels: {}
+    loadBalancerIP: null
+    nodePort: null
+    port: 80
+    type: ClusterIP
+  terminationGracePeriodSeconds: 30
+  tolerations: []
+  verboseLogging: true
+# Ingress
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+  enabled: true
+  hosts:
+    - loki.10-7-2-141.sslip.io
+  ingressClassName: 'nginx'
+  labels: {}
+  paths:
+    read:
+      - /api/prom/tail
+      - /loki/api/v1/tail
+      - /loki/api
+      - /api/prom/rules
+      - /loki/api/v1/rules
+      - /prometheus/api/v1/rules
+      - /prometheus/api/v1/alerts
+    singleBinary:
+      - /api/prom/push
+      - /loki/api/v1/push
+      - /api/prom/tail
+      - /loki/api/v1/tail
+      - /loki/api
+      - /api/prom/rules
+      - /loki/api/v1/rules
+      - /prometheus/api/v1/rules
+      - /prometheus/api/v1/alerts
+    write:
+      - /api/prom/push
+      - /loki/api/v1/push
+  tls:
+    - hosts:
+        - loki.rke2.deiberts.domain
+      secretName: loki-gateway-tls
+# RBAC
+rbac:
+  pspAnnotations: {}
+  pspEnabled: false
+  sccEnabled: false
+# Backend
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              {{- include "loki.backendSelectorLabels" . | nindent 10 }}
+          topologyKey: kubernetes.io/hostname
+  replicas: 1
+  persistence:
+    enableStatefulSetAutoDeletePVC: true
+    selector: null
+    size: 3Gi
+    storageClass: null
+# SINGLE Binary
+singleBinary:
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              {{- include "loki.singleBinarySelectorLabels" . | nindent 10 }}
+          topologyKey: kubernetes.io/hostname
+  replicas: 0
+  persistence:
+    enableStatefulSetAutoDeletePVC: true
+    enabled: true
+    selector: null
+    size: 5Gi
+    storageClass: null
+# READ Section
+read:
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              {{- include "loki.readSelectorLabels" . | nindent 10 }}
+          topologyKey: kubernetes.io/hostname
+  replicas: 1
+persistence:
+    enableStatefulSetAutoDeletePVC: true
+    selector: null
+    size: 3Gi
+    storageClass: null
+# WRITE Section
+write:
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              {{- include "loki.writeSelectorLabels" . | nindent 10 }}
+          topologyKey: kubernetes.io/hostname
+  replicas: 1
+  persistence:
+    enableStatefulSetAutoDeletePVC: false
+    selector: null
+    size: 3Gi
+    storageClass: null
+
+# minIO easy deployment
+minio:
+  enabled: false
