@@ -1,4 +1,4 @@
-# **`Install MINIO-Operator`**
+# **Install MINIO-Operator**
 
 ## **Tools needed**
 - kubectl
@@ -34,14 +34,14 @@ kubectl get service console -n minio-operator -o yaml > service.yaml
 yq e -i '.spec.type="NodePort"' service.yaml
 yq e -i '.spec.ports[0].nodePort = PORT_NUMBER' service.yaml
 ```
----------
+---
 
 * Update replica count
 ```sh
 kubectl get deployment minio-operator -n minio-operator -o yaml > operator.yaml
 yq -i -e '.spec.replicas |= 1' operator.yaml
 ```
----------
+---
 
 ### **Install Cert-Manager**
 - Install **[Cert-manager](https://https://cert-manager.io/docs/installation/helm/)** and create a self-signed Cluster issuer CA
@@ -85,7 +85,7 @@ spec:
 EOF
 ```
 
----------
+---
 
 - Create your ingress and annotate your `selfsigned-issuer-ca` cluster-issuer
 
@@ -118,7 +118,7 @@ spec:
 EOF
 ```
 
----------
+---
 
 ### **Grab Your JWT Token**
 
@@ -149,18 +149,20 @@ helm upgrade -i <tenant-name> ./tenant-5.0.9.tgz -n <namespace> --values <values
 kubectl -n <namespace> port-forward svc/myminio-console 9443:9443
 ```
 
+---
+
 ### **Create your S3 MinIO Endpoint with MinIO-Operator**
 
 Reference: **[Deploy and Manage MinIO Tenants](https://min.io/docs/minio/kubernetes/upstream/operations/deploy-manage-tenants.html)**
 
-* Requirements:
+#### **Requirements**
   - You NEED a StorageClass defined
     - examples like Longhorn, Local-path, etc.
   - Your JWT login token to access the UI ingress or exposed port
   - Loadbalancer services ready to handle loadbalancer request (this could be ClusterIP if you wanted to lock to cluster only related resources)
-* If you paid for MinIO, this is where you supply your registry key in the Operator UI.
+  - If you paid for MinIO, this is where you supply your registry key in the Operator UI.
 
----------
+---
 
 1. Inside your operator UI, click `Create Tenant` in the upper right hand corner.
 2. Since there are numerous options to choose from, we are going to stick to the MANDATORY fields with the "`*`" next to it.
@@ -172,6 +174,7 @@ Reference: **[Deploy and Manage MinIO Tenants](https://min.io/docs/minio/kuberne
      5. Drives per Server (How many "volumes" to make per server)
      6. Erasure Code Parity (EC:4 is the default but for demo purposes, you can assign EC:0 (No fault tolerance)) but only AFTER you created the tenant. You will have to go back into your tenant and edit the parameter. (bug)
         - More about Erasure Code Parity here: **[Erasure Coding](https://min.io/docs/minio/linux/operations/concepts/erasure-coding.html)**
-     7. Optional: Click on the `Identity Provider` tab and you can assign a username / password for your s3 storage console you're about to build.
+     7. Optional: Click on the `Identity Provider` tab and you can assign a username / password for your s3 storage console you're about to build. Otherwise, they will be automatically generated.
 3. Once you setup these values, and click `Create` in the lower right hand corner and you will get a message that states `New Tenant Created`.  You can now download your .json formated key identifier. 
 4. Your s3 minio pod should be provisioning in the desired namespace you specified. This also includes the name of the pods and you can validate your storage by checking your PVCs / PV relationships for your storageClass.
+   - If your pod fails to start, check to ensure that your parity settings are configure properly to start the container.  Your container logs should let you know if they need to be adjusted.
