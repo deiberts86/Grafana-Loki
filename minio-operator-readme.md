@@ -16,7 +16,7 @@ curl -O https://raw.githubusercontent.com/minio/operator/master/helm-releases/te
 
 OR
 
-* Clone from repo1 if needed:
+* Clone from repo1 if needed if in a DoD space:
 
   - **[Repo1-Minio-Operator](https://repo1.dso.mil/big-bang/product/packages/minio-operator.git)**
 - Benefit of this includes ISTIO related chart values.
