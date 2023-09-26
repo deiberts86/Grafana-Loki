@@ -43,10 +43,11 @@ yq -i -e '.spec.replicas |= 1' operator.yaml
 ```
 ---------
 
+### **Install Cert-Manager**
+- Install **[Cert-manager](https://https://cert-manager.io/docs/installation/helm/)** and create a self-signed Cluster issuer CA
+
 * Create your Cluster CA Issuer
   - Note: Using Self-Signed certificates for this example but custom signing CA certificate can be used to distribute your certificates.
-
-- Install **[Cert-manager](https://https://cert-manager.io/docs/installation/helm/)** and create a self-signed Cluster issuer CA
 
 ```sh
 kubectl apply -f -<<EOF
@@ -148,3 +149,29 @@ helm upgrade -i <tenant-name> ./tenant-5.0.9.tgz -n <namespace> --values <values
 kubectl -n <namespace> port-forward svc/myminio-console 9443:9443
 ```
 
+### **Create your S3 MinIO Endpoint with MinIO-Operator**
+
+Reference: **[Deploy and Manage MinIO Tenants](https://min.io/docs/minio/kubernetes/upstream/operations/deploy-manage-tenants.html)**
+
+* Requirements:
+  - You NEED a StorageClass defined
+    - examples like Longhorn, Local-path, etc.
+  - Your JWT login token to access the UI ingress or exposed port
+  - Loadbalancer services ready to handle loadbalancer request (this could be ClusterIP if you wanted to lock to cluster only related resources)
+* If you paid for MinIO, this is where you supply your registry key in the Operator UI.
+
+---------
+
+1. Inside your operator UI, click `Create Tenant` in the upper right hand corner.
+2. Since there are numerous options to choose from, we are going to stick to the MANDATORY fields with the "`*`" next to it.
+   - Required fields in the `Setup` tab:
+     1. Name
+     2. Namespace (you have to be specific to a "known" created namespace)
+     3. StorageClass
+     4. Number of Servers (how man pods you want to serve S3)
+     5. Drives per Server (How many "volumes" to make per server)
+     6. Erasure Code Parity (EC:4 is the default but for demo purposes, you can assign EC:0 (No fault tolerance)) but only AFTER you created the tenant. You will have to go back into your tenant and edit the parameter. (bug)
+        - More about Erasure Code Parity here: **[Erasure Coding](https://min.io/docs/minio/linux/operations/concepts/erasure-coding.html)**
+     7. Optional: Click on the `Identity Provider` tab and you can assign a username / password for your s3 storage console you're about to build.
+3. Once you setup these values, and click `Create` in the lower right hand corner and you will get a message that states `New Tenant Created`.  You can now download your .json formated key identifier. 
+4. Your s3 minio pod should be provisioning in the desired namespace you specified. This also includes the name of the pods and you can validate your storage by checking your PVCs / PV relationships for your storageClass.
