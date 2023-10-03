@@ -86,17 +86,21 @@ metadata:
   namespace: loki
 data:
   promtail.yaml: |
+    enabled: true
+    logLevel: info
+    logFormat: logfmt
     server:
       http_listen_port: 9080
       grpc_listen_port: 0
-
     clients:
     - url: http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push
       # tenant_id: 1 #(only use if loki auth is enabled and must match tenant_id. I believe a license is required for this...)
       tls_config:
         insecure_skip_verify: true
-
-
+      backoff_config:
+        min_period: 100ms
+        max_period: 10s
+        max_retries: 10
     positions:
       filename: /tmp/positions.yaml
     target_config:
@@ -105,8 +109,46 @@ data:
     - job_name: pod-logs
       kubernetes_sd_configs:
         - role: pod
+      pipelineStages:
+        - cri: {}
+      common:
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_pod_node_name
+          target_label: node_name
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_namespace
+          target_label: namespace
+        - action: replace
+          replacement: $1
+          separator: /
+          source_labels:
+            - namespace
+            - app
+          target_label: job
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: pod
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_pod_container_name
+          target_label: container
+        - action: replace
+          replacement: /var/log/pods/*$1/*.log
+          separator: /
+          source_labels:
+            - __meta_kubernetes_pod_uid
+            - __meta_kubernetes_pod_container_name
+          target_label: __path__
+  scrapeConfigs: |
+    # See also https://github.com/grafana/loki/blob/master/production/ksonnet/promtail/scrape_config.libsonnet for reference
+    - job_name: kubernetes-pods
       pipeline_stages:
-        - docker: {}
+        {{- toYaml .Values.config.snippets.pipelineStages | nindent 4 }}
+      kubernetes_sd_configs:
+        - role: pod
       relabel_configs:
         - source_labels:
             - __meta_kubernetes_pod_node_name
@@ -132,9 +174,34 @@ data:
           source_labels:
             - __meta_kubernetes_pod_container_name
           target_label: container
-        - replacement: /var/log/containers/*$1.log
+        - replacement: /var/log/pods/*$1/*.log
           separator: /
           source_labels:
             - __meta_kubernetes_pod_uid
             - __meta_kubernetes_pod_container_name
           target_label: __path__
+        {{- if .Values.config.snippets.addScrapeJobLabel }}
+        - replacement: kubernetes-pods
+          target_label: scrape_job
+        {{- end }}
+        {{- toYaml .Values.config.snippets.common | nindent 4 }}
+        {{- with .Values.config.snippets.extraRelabelConfigs }}
+        {{- toYaml . | nindent 4 }}
+        {{- end }}
+    - job_name: systemd-messages
+      static_configs:
+        - targets: [localhost]
+          labels:
+            job: varlogs
+            host: "${NODE_HOSTNAME}"
+            __path__: /var/log/*
+      relabel_configs:
+      - source_labels:
+        - __journal_systemd_unit
+        target_label: systemd_unit
+      - source_labels:
+        - __journal_hostname
+        target_label: nodename
+      - source_labels:
+        - __journal_syslog_identifier
+        target_label: syslog_identifier
