@@ -12,14 +12,11 @@ loki:
     replication_factor: 1
   storage:
     type: 'filesystem'
-    # s3:
-    #   endpoint: https://minio.loki.svc.cluster.local 
-    #   bucketnames: loki-s3
-    #   secret_access_key: "Kn9hm7Eh5Us6ew01atEFojPwUM80D4oD"
-    #   access_key_id: "X9eYalr2LbVfSes8"
 singleBinary:
   replicas: 1
 
+
+# INGRESSES #
 # Gateway Ingress
 gateway:
   affinity: |
@@ -159,50 +156,3 @@ ingress:
     - hosts:
         - loki.10-7-2-141.sslip.io
       secretName: loki-api-tls
-
-# # Backend Section
-# backend:
-#   affinity: |
-#     podAntiAffinity:
-#       requiredDuringSchedulingIgnoredDuringExecution:
-#         - labelSelector:
-#             matchLabels:
-#               {{- include "loki.backendSelectorLabels" . | nindent 10 }}
-#           topologyKey: kubernetes.io/hostname
-#   replicas: 1
-#   persistence:
-#     enableStatefulSetAutoDeletePVC: true
-#     selector: null
-#     size: 3Gi
-#     storageClass: null
-# # READ Section
-# read:
-#   affinity: |
-#     podAntiAffinity:
-#       requiredDuringSchedulingIgnoredDuringExecution:
-#         - labelSelector:
-#             matchLabels:
-#               {{- include "loki.readSelectorLabels" . | nindent 10 }}
-#           topologyKey: kubernetes.io/hostname
-#   replicas: 1
-# persistence:
-#     enableStatefulSetAutoDeletePVC: true
-#     selector: null
-#     size: 3Gi
-#     storageClass: null
-
-# # WRITE Section
-# write:
-#   affinity: |
-#     podAntiAffinity:
-#       requiredDuringSchedulingIgnoredDuringExecution:
-#         - labelSelector:
-#             matchLabels:
-#               {{- include "loki.writeSelectorLabels" . | nindent 10 }}
-#           topologyKey: kubernetes.io/hostname
-#   replicas: 1
-#   persistence:
-#     enableStatefulSetAutoDeletePVC: false
-#     selector: null
-#     size: 3Gi
-#     storageClass: null
