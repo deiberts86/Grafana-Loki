@@ -5,7 +5,7 @@
 
 #### Image Listing
 
-- `Single Binary Deployment`
+- `Single Binary Deployment Image Listing for version "2.9.2`
   - quay.io/prometheus-operator/prometheus-config-reloader:v0.62.0
   - grafana/agent:v0.34.1
   - nginxinc/nginx-unprivileged:1.23-alpine
